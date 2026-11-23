@@ -69,7 +69,8 @@ class Configuration private constructor(builder: Builder) {
     /**
      * Where the queue lives. `null`: a new directory under `java.io.tmpdir` for this process,
      * deleted when Lyrelog closes (what wasn't sent by then is lost, as with an in-memory
-     * queue). A directory of your own keeps what wasn't sent for the next start; one process
+     * queue; one a killed process left behind is deleted by the next start in that folder). A
+     * directory of your own keeps what wasn't sent for the next start; one process
      * at a time (a second one finds it locked and uses a temporary directory).
      */
     val storageDirectory: File? = builder.storageDirectory
@@ -80,10 +81,12 @@ class Configuration private constructor(builder: Builder) {
     val captureUncaught: Boolean = builder.captureUncaught
     /**
      * Close (send what's left, up to [closeTimeoutMillis]) when the JVM shuts down. The hook runs
-     * as shutdown begins, alongside your framework's own shutdown, so what that logs while it
-     * stops gracefully may come too late. To keep it, turn this off and call [Lyrelog.close]
-     * yourself, as the last step of your shutdown (Spring: a `SmartLifecycle` with the lowest
-     * phase, whose `stop` runs after the web server and the other beans have stopped).
+     * alongside your framework's own shutdown hooks, so it keeps recording until nothing was
+     * logged for half a second (for at most half of [closeTimeoutMillis]), then sends: what a
+     * framework logs while it stops is kept, and the exit never waits longer than the timeout.
+     * A shutdown that logs for longer (a web server draining slow requests): turn this off and
+     * call [Lyrelog.close] yourself, as the last step of your shutdown (Spring: a
+     * `SmartLifecycle` with the lowest phase, whose `stop` runs after the other beans stopped).
      */
     val shutdownHook: Boolean = builder.shutdownHook
     /** How long closing waits for the last send. */

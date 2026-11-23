@@ -60,13 +60,13 @@ class LyrelogTest {
         assertTrue(Lyrelog.flush())
         val request = ingest.received.single()
         assertEquals("Bearer lyr_srv_test", request.headers["authorization"])
-        assertEquals("lyrelog-jvm/0.9.0", request.headers["user-agent"])
+        assertEquals("lyrelog-jvm/1.0.0", request.headers["user-agent"])
         request.lines.forEach(ServerRules::check)
         val (first, second, third) = request.events
         assertEquals("checkout_done", first["message"].string)
         assertEquals("[redacted]", first["attrs"]["password"].string)
         val resource = first["resource"]
-        assertEquals("lyrelog-jvm/0.9.0", resource["sdk"].string)
+        assertEquals("lyrelog-jvm/1.0.0", resource["sdk"].string)
         assertEquals("jvm", resource["platform"].string)
         assertEquals("production", resource["environment"].string)
         assertEquals(System.getProperty("os.name"), resource["os_name"].string)
@@ -216,7 +216,7 @@ class LyrelogTest {
         assertEquals("2.4.0", resource.appVersion)
         assertEquals("worker", resource.platform)
         assertEquals("staging", resource.environment)
-        assertEquals("lyrelog-jvm/0.9.0", resource.sdk)
+        assertEquals("lyrelog-jvm/1.0.0", resource.sdk)
     }
 
     @Test
@@ -320,6 +320,66 @@ class LyrelogTest {
         )
     }
 
+    private fun java(main: String, vararg args: String, tmp: File? = null): Process {
+        val java = File(System.getProperty("java.home"), "bin/java").path
+        val command = mutableListOf(java)
+        if (tmp != null) command += "-Djava.io.tmpdir=${tmp.path}"
+        command += listOf("-cp", System.getProperty("java.class.path"), main)
+        command += args
+        return ProcessBuilder(command).redirectErrorStream(true).start()
+    }
+
+    /** With the hook on, what another shutdown hook logs (Spring closing its context) still goes. */
+    @Test
+    fun theShutdownHookWaitsForTheFrameworksShutdownLogs() {
+        val process = java("com.lyrelog.jvm.FrameworkShutdownServer", ingest.url)
+        val output = process.inputStream.bufferedReader().readText()
+        assertTrue(process.waitFor(30, TimeUnit.SECONDS))
+        eventually(5_000) { ingest.allEvents.size >= 2 }
+        assertEquals(listOf("started", "context_closed"), ingest.allEvents.map { it["message"].string }, output)
+    }
+
+    /** A thread that never stops logging can't hold the exit past the close timeout. */
+    @Test
+    fun theShutdownHookNeverHoldsTheExitPastTheCloseTimeout() {
+        val process = java("com.lyrelog.jvm.NoisyShutdownServer", ingest.url)
+        val output = process.inputStream.bufferedReader().readText()
+        val ended = System.currentTimeMillis()
+        assertTrue(process.waitFor(30, TimeUnit.SECONDS))
+        val exiting = Regex("exiting at (\\d+)").find(output)?.groupValues?.get(1)?.toLong()
+        assertNotNull(exiting, output)
+        assertTrue(ended - exiting < NoisyShutdownServer.CLOSE_TIMEOUT_MILLIS + 1_500, "the exit took ${ended - exiting} ms")
+        assertTrue(ingest.allEvents.any { it["message"].string == "still_busy" }, output)
+    }
+
+    /** A process killed with -9 leaves its temporary queue; the next start removes it, never a live one's. */
+    @Test
+    fun aKilledProcessesTemporaryQueueIsRemovedAtTheNextStart() {
+        val tmp = tempDir()
+        // The refusal keeps the events on disk, as a process killed before sending would.
+        ingest.replies.add(Reply(401))
+        val killed = java("com.lyrelog.jvm.KilledServer", ingest.url, tmp = tmp)
+        val line = killed.inputStream.bufferedReader().readLine()
+        assertEquals("ready", line)
+        killed.destroyForcibly()
+        assertTrue(killed.waitFor(30, TimeUnit.SECONDS))
+        val left = tmp.listFiles { f -> f.name.startsWith("lyrelog-") }!!.single()
+        assertTrue(left.walkTopDown().any { it.isFile && it.name.endsWith(".ndjson") }, "unsent events were left behind")
+        // A live process's queue, of this JVM, and one just made (its lock not taken yet) stay.
+        val live = QueueDirectory.open(null, SdkLog { _, _ -> }, tmp)
+        val fresh = File(tmp, "lyrelog-queue-fresh").apply { mkdirs(); File(this, QueueDirectory.LOCK_FILE).writeText("") }
+        val foreign = File(tmp, "lyrelog-other").apply { mkdirs() }
+        File(left, QueueDirectory.LOCK_FILE).setLastModified(System.currentTimeMillis() - 10 * 60_000)
+        File(live.directory, QueueDirectory.LOCK_FILE).setLastModified(System.currentTimeMillis() - 10 * 60_000)
+
+        val next = QueueDirectory.open(null, SdkLog { _, _ -> }, tmp)
+        assertFalse(left.exists(), "the dead process's queue was removed")
+        assertTrue(live.directory.exists() && fresh.exists() && foreign.exists() && next.directory.exists())
+        next.release()
+        live.release()
+        assertFalse(live.directory.exists())
+    }
+
     @Test
     fun theShutdownHookSendsWhatIsLeftAndAnUncaughtCrashOfMain() {
         val java = File(System.getProperty("java.home"), "bin/java").path
@@ -362,5 +422,51 @@ object ExitingServer {
         Lyrelog.start(Configuration("lyr_srv_test") { endpoint = args[0]; flushIntervalMillis = 3_600_000; captureUncaught = true })
         Lyrelog.info("started")
         throw IllegalStateException("main died")
+    }
+}
+
+/** Started in its own JVM, with the hook on: a framework's own hook logs as it closes, a little later. */
+object FrameworkShutdownServer {
+    @JvmStatic
+    fun main(args: Array<String>) {
+        Lyrelog.start(Configuration("lyr_srv_test") { endpoint = args[0]; flushIntervalMillis = 3_600_000 })
+        Runtime.getRuntime().addShutdownHook(Thread {
+            Thread.sleep(300) // the context closing its beans
+            Lyrelog.info("context_closed")
+        })
+        Lyrelog.info("started")
+    }
+}
+
+/** Started in its own JVM, with the hook on: a thread keeps logging through the shutdown. */
+object NoisyShutdownServer {
+    const val CLOSE_TIMEOUT_MILLIS = 2_000L
+
+    @JvmStatic
+    fun main(args: Array<String>) {
+        Lyrelog.start(Configuration("lyr_srv_test") { endpoint = args[0]; flushIntervalMillis = 3_600_000; closeTimeoutMillis = CLOSE_TIMEOUT_MILLIS })
+        Thread {
+            while (true) {
+                Lyrelog.info("still_busy")
+                Thread.sleep(20)
+            }
+        }.apply { isDaemon = true }.start()
+        Thread.sleep(100)
+        println("exiting at ${System.currentTimeMillis()}")
+        System.out.flush()
+        System.exit(0)
+    }
+}
+
+/** Started in its own JVM with its own temporary folder, then killed with -9 after logging. */
+object KilledServer {
+    @JvmStatic
+    fun main(args: Array<String>) {
+        Lyrelog.start(Configuration("lyr_srv_test") { endpoint = args[0]; flushIntervalMillis = 3_600_000; diagnostics { } })
+        Lyrelog.info("never_sent")
+        Lyrelog.flush(2_000)
+        println("ready")
+        System.out.flush()
+        Thread.sleep(60_000)
     }
 }

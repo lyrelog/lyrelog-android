@@ -26,7 +26,7 @@ Not published yet. Once it is, from Maven Central:
 
 ```kotlin
 dependencies {
-    implementation("com.lyrelog:lyrelog-android:0.9.0")
+    implementation("com.lyrelog:lyrelog-android:1.0.0")
 }
 ```
 
@@ -205,8 +205,8 @@ the way the Go and Python SDKs are. Not published yet either.
 
 ```kotlin
 dependencies {
-    implementation("com.lyrelog:lyrelog-jvm:0.9.0")
-    implementation("com.lyrelog:lyrelog-jvm-logback:0.9.0")   // optional: SLF4J and Logback records
+    implementation("com.lyrelog:lyrelog-jvm:1.0.0")
+    implementation("com.lyrelog:lyrelog-jvm-logback:1.0.0")   // optional: SLF4J and Logback records
 }
 ```
 
@@ -246,8 +246,8 @@ How it differs from the Android library:
 | Context | Platform `jvm`; environment from `Configuration.environment`, else `LYRELOG_ENVIRONMENT`, else `production` (an invalid variable is said once and replaced); `release` and `appId` default to the started jar's `Implementation-Version` and `Implementation-Title` (else its file name, else the main class); `os_name` and `os_version` from the JVM. No device, locale, screens, consent or Key Attestation. |
 | Ids | An install id and one session id per process, never written to disk (as in Go and Python). |
 | Users | `user` on each event, `Lyrelog.userScope(id)` for a thread (a request) or `LyrelogUser(id)` for a coroutine (`withContext`; kotlinx-coroutines is the application's own, Lyrelog doesn't bring it), `setUser` for the process; in that order of precedence. Reactive code (Reactor, RxJava) passes `user` on each event. |
-| Queue | A temporary directory per process (deleted on close), or `storageDirectory`, kept for the next start and locked to one process. Same caps: 20 MB and 7 days. |
-| Sending | Every 5 s (at least 1 s). A JVM shutdown hook closes (sends what's left, up to `closeTimeoutMillis`, 5 s). It runs as shutdown begins, so what a framework logs while it stops gracefully can come too late: set `shutdownHook = false` and call `Lyrelog.close()` as the last step of your own shutdown (Spring: a `SmartLifecycle` with the lowest phase). `Lyrelog.flush()` before a serverless handler returns. `start` returns `true` when it started; `Lyrelog.isStarted` says whether it runs. |
+| Queue | A temporary directory per process (deleted on close; one left by a process killed without closing is deleted by the next start, its events unsent), or `storageDirectory`, kept for the next start and locked to one process. Same caps: 20 MB and 7 days. |
+| Sending | Every 5 s (at least 1 s). A JVM shutdown hook closes (sends what's left, up to `closeTimeoutMillis`, 5 s). It runs beside your framework's own shutdown hooks, so it keeps recording until nothing was logged for half a second (at most half the timeout), then sends: what Spring logs while its context closes is kept, and the exit never waits longer than the timeout. For a shutdown that logs for longer (a server draining slow requests), set `shutdownHook = false` and call `Lyrelog.close()` as the last step of your own shutdown (Spring: a `SmartLifecycle` with the lowest phase). `Lyrelog.flush()` before a serverless handler returns. `start` returns `true` when it started; `Lyrelog.isStarted` says whether it runs. |
 | Uncaught exceptions | Off by default; `captureUncaught = true` records them as `exception` with `handled: false`, `mechanism: uncaught_exception` and `thread`, then runs the previous handler. |
 | Diagnostics | To standard error, once per process, or to `Configuration.diagnostics` (a `Consumer<String>`). |
 | Logback | `lyrelog-jvm-logback`: `<appender class="com.lyrelog.logback.LyrelogAppender"/>`. The logger name is the category, MDC and SLF4J 2 key-value pairs the attributes (`user_id` the user), the exception `error_type`, `error_message` and `payload.exception`. With `<apiKey>` it starts Lyrelog itself and closes it when Logback stops (an unset `${LYRELOG_KEY}` starts nothing). Records from the SDK's own threads are ignored, also behind an `AsyncAppender`, so it can't loop. Logback is the application's own (1.3 or later). |
@@ -288,7 +288,7 @@ android.permission.ACCESS_LOCAL_NETWORK`).
 ./gradlew :core:test :jvm:test :jvm-logback:test       # the JVM tests, no Android SDK needed
 LYRELOG_E2E_URL=http://127.0.0.1:8090 LYRELOG_E2E_KEY=lyr_ing_... ./gradlew :core:test --tests '*EndToEnd*'
 LYRELOG_E2E_URL=http://127.0.0.1:8090 LYRELOG_E2E_KEY=lyr_srv_... ./gradlew :jvm:test --tests '*EndToEnd*'
-./gradlew publishToMavenLocal                              # every artifact to ~/.m2, version 0.9.0
+./gradlew publishToMavenLocal                              # every artifact to ~/.m2, version 1.0.0
 ./gradlew :android:testDebugUnitTest :sample:assembleDebug   # with an Android SDK
 ```
 

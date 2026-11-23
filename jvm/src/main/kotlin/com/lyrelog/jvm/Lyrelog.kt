@@ -21,8 +21,8 @@ import com.lyrelog.core.SdkLog
  * nothing. A JVM shutdown hook sends what's left ([Configuration.shutdownHook]).
  */
 object Lyrelog {
-    /** This SDK's version, sent as `resource.sdk` (`lyrelog-jvm/0.9.0`) and the User-Agent. */
-    const val VERSION = "0.9.0"
+    /** This SDK's version, sent as `resource.sdk` (`lyrelog-jvm/1.0.0`) and the User-Agent. */
+    const val VERSION = "1.0.0"
 
     private class Running(
         val engine: Engine,
@@ -64,7 +64,7 @@ object Lyrelog {
                 if (configuration.captureUncaught) UncaughtRecorder.install(engine)
                 val current = Running(engine, directory, configuration.closeTimeoutMillis, null)
                 if (configuration.shutdownHook) {
-                    val hook = Thread({ closeRunning(current, current.closeTimeoutMillis, fromHook = true) }, "lyrelog-shutdown")
+                    val hook = Thread({ closeFromHook(current) }, "lyrelog-shutdown")
                     try {
                         Runtime.getRuntime().addShutdownHook(hook)
                         current.hook = hook
@@ -124,6 +124,39 @@ object Lyrelog {
     @JvmStatic
     fun close(timeoutMillis: Long) {
         running?.let { closeRunning(it, timeoutMillis, fromHook = false) }
+    }
+
+    /** Nothing logged for this long: the other shutdown hooks are done logging. */
+    internal const val SHUTDOWN_QUIET_MILLIS = 500L
+
+    /**
+     * The JVM runs every shutdown hook at once, in no set order, so a framework closing itself
+     * (Spring's context, a web server draining) still logs while this one runs. Lyrelog keeps
+     * recording until nothing was logged for [SHUTDOWN_QUIET_MILLIS], for at most half of
+     * [Configuration.closeTimeoutMillis], then closes with what's left of it: the whole hook
+     * never takes longer than the close timeout.
+     */
+    private fun closeFromHook(current: Running) {
+        val budget = current.closeTimeoutMillis.coerceAtLeast(0)
+        val started = System.nanoTime()
+        fun elapsed() = (System.nanoTime() - started) / 1_000_000
+        try {
+            var seen = current.engine.submittedCount
+            var quietSince = elapsed()
+            while (elapsed() < budget / 2 && elapsed() - quietSince < SHUTDOWN_QUIET_MILLIS) {
+                Thread.sleep(25)
+                val count = current.engine.submittedCount
+                if (count != seen) {
+                    seen = count
+                    quietSince = elapsed()
+                }
+            }
+        } catch (e: InterruptedException) {
+            // close now
+        } catch (e: Exception) {
+            // close now
+        }
+        closeRunning(current, (budget - elapsed()).coerceAtLeast(0), fromHook = true)
     }
 
     private fun closeRunning(current: Running, timeoutMillis: Long, fromHook: Boolean) {

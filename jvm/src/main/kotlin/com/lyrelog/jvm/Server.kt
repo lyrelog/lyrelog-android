@@ -93,8 +93,11 @@ internal class ProcessInstallId : InstallIdStore {
 }
 
 /**
- * The queue's directory, held by this process alone: a configured one under a file lock (kept
- * across starts), or a temporary one deleted at close.
+ * The queue's directory, held by this process alone under a file lock on `.lock`: a configured
+ * one (kept across starts), or a temporary one (`lyrelog-queue-*` in `java.io.tmpdir`) deleted at
+ * close. A process killed without closing (kill -9, a crash of the JVM) leaves its temporary one;
+ * the next start in that folder deletes the ones whose lock no process holds ([sweep]). Their
+ * events are not sent: they may be another program's, with another key.
  */
 internal class QueueDirectory private constructor(
     val directory: File,
@@ -119,7 +122,7 @@ internal class QueueDirectory private constructor(
     companion object {
         const val LOCK_FILE = ".lock"
 
-        fun open(configured: File?, log: SdkLog): QueueDirectory {
+        fun open(configured: File?, log: SdkLog, temporaryRoot: File = File(System.getProperty("java.io.tmpdir"))): QueueDirectory {
             if (configured != null) {
                 locked(configured)?.let { return it }
                 log.once(
@@ -127,14 +130,43 @@ internal class QueueDirectory private constructor(
                     "lyrelog: the storage directory ${configured.path} is in use by another process (or can't be locked); this one queues in a temporary directory",
                 )
             }
-            val dir = Files.createTempDirectory("lyrelog-").toFile()
-            return QueueDirectory(dir, true, null, null)
+            sweep(temporaryRoot)
+            val dir = Files.createTempDirectory(temporaryRoot.toPath(), TEMPORARY_PREFIX).toFile()
+            // Locked, so another process's sweep knows it's alive; unlocked, it still works.
+            return locked(dir, temporary = true) ?: QueueDirectory(dir, true, null, null)
         }
 
-        private fun locked(dir: File): QueueDirectory? {
+        const val TEMPORARY_PREFIX = "lyrelog-queue-"
+
+        /** A lock file this old, with its lock free, is a dead process's (younger: one starting now). */
+        const val STALE_AFTER_MILLIS = 60_000L
+
+        /**
+         * Deletes the temporary queues of processes that ended without closing: `lyrelog-queue-*`
+         * with a `.lock` older than a minute that no process holds. Never throws.
+         */
+        fun sweep(root: File, now: Long = System.currentTimeMillis()) {
+            val candidates = try {
+                root.listFiles { f -> f.isDirectory && f.name.startsWith(TEMPORARY_PREFIX) }
+            } catch (e: Exception) {
+                null
+            } ?: return
+            for (dir in candidates) {
+                try {
+                    val lockFile = File(dir, LOCK_FILE)
+                    if (!lockFile.isFile || now - lockFile.lastModified() < STALE_AFTER_MILLIS) continue
+                    val held = locked(dir, temporary = true, create = false) ?: continue
+                    held.release() // deletes it
+                } catch (e: Exception) {
+                    // left for a later start
+                }
+            }
+        }
+
+        private fun locked(dir: File, temporary: Boolean = false, create: Boolean = true): QueueDirectory? {
             var channel: FileChannel? = null
             return try {
-                dir.mkdirs()
+                if (create) dir.mkdirs() else if (!File(dir, LOCK_FILE).isFile) return null
                 channel = RandomAccessFile(File(dir, LOCK_FILE), "rw").channel
                 val lock = try {
                     channel.tryLock()
@@ -145,7 +177,7 @@ internal class QueueDirectory private constructor(
                     channel.close()
                     null
                 } else {
-                    QueueDirectory(dir, false, channel, lock)
+                    QueueDirectory(dir, temporary, channel, lock)
                 }
             } catch (e: Exception) {
                 try {

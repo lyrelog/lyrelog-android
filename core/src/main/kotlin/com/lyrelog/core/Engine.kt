@@ -370,6 +370,9 @@ class Engine(
         }
     }
 
+    /** How many items were handed to the intake so far: a change means something was logged. */
+    val submittedCount: Long get() = intakeLock.withLock { submitted }
+
     /** What the intake holds now, by the estimate (tests). */
     val waitingBytes: Long get() = intakeLock.withLock { bytesWaiting }
 
