@@ -2,11 +2,11 @@
 # after the tests. The tag must match gradle.properties' version.
 #
 # Every module is published, signed, to the local repository build/central-bundle; the zip of it
-# goes to the Central Portal's Publisher API. With USER_MANAGED the Portal validates the bundle
-# and waits: a maintainer presses Publish on central.sonatype.com (a release on Central can't be
-# taken back). Secrets, in the environment "maven-central": CENTRAL_TOKEN_USERNAME and
-# CENTRAL_TOKEN_PASSWORD (a Portal user token), SIGNING_KEY (the armored private key) and
-# SIGNING_PASSWORD.
+# goes to the Central Portal's Publisher API with AUTOMATIC: the Portal validates it and publishes
+# it (a release on Central can't be taken back; 0.9.0 went out USER_MANAGED, pressed by hand).
+# The job waits until it is published. Secrets, in the environment "maven-central":
+# CENTRAL_TOKEN_USERNAME and CENTRAL_TOKEN_PASSWORD (a Portal user token, expires 2027-11),
+# SIGNING_KEY (the armored private key) and SIGNING_PASSWORD.
 name: publish
 
 on:
@@ -44,7 +44,7 @@ jobs:
           find . -name 'maven-metadata.xml*' -delete
           test "$(find . -name '*.asc' | wc -l)" -ge 20
           zip -qr ../central-bundle.zip com
-      - name: Upload to the Central Portal and wait for its validation
+      - name: Upload to the Central Portal and wait until it is published
         env:
           CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
           CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
@@ -52,16 +52,15 @@ jobs:
           auth="Authorization: Bearer $(printf '%s:%s' "$CENTRAL_TOKEN_USERNAME" "$CENTRAL_TOKEN_PASSWORD" | base64 -w0)"
           id=$(curl -sSf -X POST -H "$auth" \
             -F "bundle=@build/central-bundle.zip" \
-            "https://central.sonatype.com/api/v1/publisher/upload?name=lyrelog-android-${GITHUB_REF_NAME#v}&publishingType=USER_MANAGED")
+            "https://central.sonatype.com/api/v1/publisher/upload?name=lyrelog-android-${GITHUB_REF_NAME#v}&publishingType=AUTOMATIC")
           echo "deployment $id"
-          for _ in $(seq 1 60); do
+          for _ in $(seq 1 180); do
             state=$(curl -sSf -X POST -H "$auth" "https://central.sonatype.com/api/v1/publisher/status?id=$id" | jq -r .deploymentState)
             echo "state $state"
             case "$state" in
-              VALIDATED) echo "Validated: press Publish on https://central.sonatype.com/publishing/deployments"; exit 0 ;;
-              PUBLISHING|PUBLISHED) exit 0 ;;
+              PUBLISHED) exit 0 ;;
               FAILED) curl -sSf -X POST -H "$auth" "https://central.sonatype.com/api/v1/publisher/status?id=$id" | jq .errors; exit 1 ;;
             esac
             sleep 10
           done
-          echo "still not validated after 10 minutes"; exit 1
+          echo "not published after 30 minutes: see https://central.sonatype.com/publishing/deployments"; exit 1
