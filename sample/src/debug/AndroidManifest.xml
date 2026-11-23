@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: Android 17 (targetSdk 37) drops traffic to private addresses such as the
+     emulator's 10.0.2.2 unless the app holds this runtime permission. Release builds send to
+     https://ingest.lyrelog.com and never need it. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+</manifest>

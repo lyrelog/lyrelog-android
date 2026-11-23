@@ -1,0 +1,67 @@
+# A v* tag publishes com.lyrelog:lyrelog-core, -android, -jvm and -jvm-logback to Maven Central,
+# after the tests. The tag must match gradle.properties' version.
+#
+# Every module is published, signed, to the local repository build/central-bundle; the zip of it
+# goes to the Central Portal's Publisher API. With USER_MANAGED the Portal validates the bundle
+# and waits: a maintainer presses Publish on central.sonatype.com (a release on Central can't be
+# taken back). Secrets, in the environment "maven-central": CENTRAL_TOKEN_USERNAME and
+# CENTRAL_TOKEN_PASSWORD (a Portal user token), SIGNING_KEY (the armored private key) and
+# SIGNING_PASSWORD.
+name: publish
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: maven-central
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+        with:
+          cache-disabled: true
+      - name: The tag is the version
+        run: test "${GITHUB_REF_NAME#v}" = "$(sed -n 's/^version=//p' gradle.properties)"
+      - run: ./gradlew test --console=plain
+      - name: Publish the signed bundle locally
+        env:
+          ORG_GRADLE_PROJECT_signingKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingPassword: ${{ secrets.SIGNING_PASSWORD }}
+        run: ./gradlew publishAllPublicationsToCentralBundleRepository --console=plain
+      - name: Zip it (no maven-metadata, which Central makes itself)
+        run: |
+          cd build/central-bundle
+          find . -name 'maven-metadata.xml*' -delete
+          test "$(find . -name '*.asc' | wc -l)" -ge 20
+          zip -qr ../central-bundle.zip com
+      - name: Upload to the Central Portal and wait for its validation
+        env:
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+        run: |
+          auth="Authorization: Bearer $(printf '%s:%s' "$CENTRAL_TOKEN_USERNAME" "$CENTRAL_TOKEN_PASSWORD" | base64 -w0)"
+          id=$(curl -sSf -X POST -H "$auth" \
+            -F "bundle=@build/central-bundle.zip" \
+            "https://central.sonatype.com/api/v1/publisher/upload?name=lyrelog-android-${GITHUB_REF_NAME#v}&publishingType=USER_MANAGED")
+          echo "deployment $id"
+          for _ in $(seq 1 60); do
+            state=$(curl -sSf -X POST -H "$auth" "https://central.sonatype.com/api/v1/publisher/status?id=$id" | jq -r .deploymentState)
+            echo "state $state"
+            case "$state" in
+              VALIDATED) echo "Validated: press Publish on https://central.sonatype.com/publishing/deployments"; exit 0 ;;
+              PUBLISHING|PUBLISHED) exit 0 ;;
+              FAILED) curl -sSf -X POST -H "$auth" "https://central.sonatype.com/api/v1/publisher/status?id=$id" | jq .errors; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "still not validated after 10 minutes"; exit 1

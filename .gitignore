@@ -1,0 +1,13 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.kotlin/
+.DS_Store
+captures/
+.cxx/
+.externalNativeBuild/
+
+# Agents guide: kept on the maintainer's machine, not in the public repo
+CLAUDE.md
