@@ -14,10 +14,10 @@
   <a href="https://lyrelog.com">lyrelog.com</a>
 </p>
 
-Structured logs from your Android app to [Lyrelog](https://lyrelog.com), a hosted log service.
+Structured logs from your Android app to [Lyrelog](https://lyrelog.com/platforms/android), a hosted log service.
 Kotlin, Android 7.0 (API 24) and later, no dependencies beyond the Kotlin standard library.
 
-The same repository has the JVM server SDK, `com.lyrelog:lyrelog-jvm`, for Java and Kotlin on
+The same repository has the [JVM server SDK](https://lyrelog.com/platforms/jvm), `com.lyrelog:lyrelog-jvm`, for Java and Kotlin on
 servers (Spring, Ktor, plain JVM), built on the same engine: see [On a server](#on-a-server-java-and-kotlin-on-the-jvm).
 
 ## Install
