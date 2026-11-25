@@ -38,7 +38,7 @@ class WireTest {
         assertEquals("sess", parsed["session_id"].string)
         assertEquals(JsonValue.Integer(3), parsed["attrs"]["items"])
         assertEquals("android", parsed["resource"]["platform"].string)
-        assertEquals("lyrelog-android/1.0.0", parsed["resource"]["sdk"].string)
+        assertEquals("lyrelog-android/1.1.0", parsed["resource"]["sdk"].string)
         val bare = Json.parse(WireEvent.encode(PendingEvent(id, 0, Level.INFO, null, "m", emptyMap(), null, null, null), null, Resource(), Redaction.DEFAULT))!!
         assertNull(bare["attrs"])
         assertNull(bare["category"])

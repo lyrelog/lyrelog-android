@@ -4,4 +4,8 @@
      https://ingest.lyrelog.com and never need it. -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <application>
+        <!-- An ANR in the background, to try the SDK's ANR reports (FreezeReceiver). -->
+        <receiver android:name=".FreezeReceiver" android:exported="true" />
+    </application>
 </manifest>

@@ -60,13 +60,13 @@ class LyrelogTest {
         assertTrue(Lyrelog.flush())
         val request = ingest.received.single()
         assertEquals("Bearer lyr_srv_test", request.headers["authorization"])
-        assertEquals("lyrelog-jvm/1.0.0", request.headers["user-agent"])
+        assertEquals("lyrelog-jvm/1.1.0", request.headers["user-agent"])
         request.lines.forEach(ServerRules::check)
         val (first, second, third) = request.events
         assertEquals("checkout_done", first["message"].string)
         assertEquals("[redacted]", first["attrs"]["password"].string)
         val resource = first["resource"]
-        assertEquals("lyrelog-jvm/1.0.0", resource["sdk"].string)
+        assertEquals("lyrelog-jvm/1.1.0", resource["sdk"].string)
         assertEquals("jvm", resource["platform"].string)
         assertEquals("production", resource["environment"].string)
         assertEquals(System.getProperty("os.name"), resource["os_name"].string)
@@ -216,7 +216,7 @@ class LyrelogTest {
         assertEquals("2.4.0", resource.appVersion)
         assertEquals("worker", resource.platform)
         assertEquals("staging", resource.environment)
-        assertEquals("lyrelog-jvm/1.0.0", resource.sdk)
+        assertEquals("lyrelog-jvm/1.1.0", resource.sdk)
     }
 
     @Test

@@ -42,6 +42,15 @@ class BoardActivity : Activity() {
                 game.warning("crash_requested")
                 throw IllegalStateException("tile fell off the board")
             },
+            // Android reports these itself, on the next launch (ApplicationExitInfo, Android 11+).
+            button("Freeze (ANR)") {
+                game.warning("freeze_requested")
+                Thread.sleep(20_000) // the main thread stops answering: touch the screen and Android calls it an ANR
+            },
+            button("Native crash") {
+                game.warning("native_crash_requested")
+                writeToAddressZero()
+            },
             button("Settings") { startActivity(Intent(this, SettingsActivity::class.java)) },
         ))
     }
@@ -75,6 +84,13 @@ class BoardActivity : Activity() {
         gravity = Gravity.CENTER_HORIZONTAL
         setPadding(48, 96, 48, 48)
         views.forEach { addView(it) }
+    }
+
+    /** A real SIGSEGV outside the JVM, without native code of our own: a write to address 0. */
+    private fun writeToAddressZero() {
+        val unsafeClass = Class.forName("sun.misc.Unsafe")
+        val field = unsafeClass.getDeclaredField("theUnsafe").apply { isAccessible = true }
+        unsafeClass.getMethod("putLong", Long::class.javaPrimitiveType, Long::class.javaPrimitiveType).invoke(field.get(null), 0L, 0L)
     }
 
     private companion object {

@@ -72,7 +72,11 @@ class Configuration private constructor(builder: Builder) {
      */
     val redactedKeys: List<String>? = builder.redactedKeys
 
-    /** Record uncaught exceptions to disk as they happen; they are sent on the next launch. */
+    /**
+     * Record uncaught exceptions to disk as they happen, and read the ANRs and native crashes
+     * Android recorded (Android 11+; a native crash's frames from 12); all are sent on the next
+     * launch, at the time they happened.
+     */
     val captureCrashes: Boolean = builder.captureCrashes
 
     /** Tag every event with the screen set by `Lyrelog.screen` (`screen` attribute). */

@@ -31,8 +31,8 @@ import java.io.File
  * [setConsent] before [start] are kept and applied when it runs.
  */
 object Lyrelog {
-    /** This SDK's version, sent as `resource.sdk` (`lyrelog-android/1.0.0`) and the User-Agent. */
-    const val VERSION = "1.0.0"
+    /** This SDK's version, sent as `resource.sdk` (`lyrelog-android/1.1.0`) and the User-Agent. */
+    const val VERSION = "1.1.0"
     private const val TAG = "Lyrelog"
 
     private val lock = Any()
@@ -99,7 +99,11 @@ object Lyrelog {
                 earlyUserSet = false
                 earlyUser = null
                 earlyConsent = null
-                if (configuration.captureCrashes) CrashRecorder.install(started)
+                if (configuration.captureCrashes) {
+                    CrashRecorder.install(started)
+                    // ANRs and native crashes of earlier processes, from Android's own records.
+                    ExitReasons.report(app, started, File(base, "last_exit"))
+                }
                 (app as? Application)?.let {
                     val screens: ((String) -> Unit)? = if (configuration.automaticScreens) { name -> started.screen(name) } else null
                     val callbacks = ActivityTracker(started::setForeground, started::flushAsync, screens)

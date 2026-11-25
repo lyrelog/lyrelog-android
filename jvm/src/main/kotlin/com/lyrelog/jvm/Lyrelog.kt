@@ -21,8 +21,8 @@ import com.lyrelog.core.SdkLog
  * nothing. A JVM shutdown hook sends what's left ([Configuration.shutdownHook]).
  */
 object Lyrelog {
-    /** This SDK's version, sent as `resource.sdk` (`lyrelog-jvm/1.0.0`) and the User-Agent. */
-    const val VERSION = "1.0.0"
+    /** This SDK's version, sent as `resource.sdk` (`lyrelog-jvm/1.1.0`) and the User-Agent. */
+    const val VERSION = "1.1.0"
 
     private class Running(
         val engine: Engine,
