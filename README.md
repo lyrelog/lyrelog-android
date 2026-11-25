@@ -22,7 +22,7 @@ servers (Spring, Ktor, plain JVM), built on the same engine: see [On a server](#
 
 ## Install
 
-Not published yet. Once it is, from Maven Central:
+From Maven Central:
 
 ```kotlin
 dependencies {
@@ -215,7 +215,7 @@ real users' events arrive verified. Events your own servers send with a server k
 
 `com.lyrelog:lyrelog-jvm` (Java 11 and later) runs the same engine as the Android library
 (`lyrelog-core`: the queue, batching, retries, redaction, the wire format), set up for a server
-the way the Go and Python SDKs are. Not published yet either.
+the way the Go and Python SDKs are. From Maven Central too:
 
 ```kotlin
 dependencies {

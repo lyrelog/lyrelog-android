@@ -34,6 +34,6 @@ __attribute__((noinline)) int drop(const Tile* missing) {
 } // namespace tilefall
 
 extern "C" JNIEXPORT jint JNICALL Java_com_example_tilefall_NativeBoard_drop(JNIEnv*, jclass) {
-    volatile const tilefall::Tile* missing = nullptr;
+    const tilefall::Tile* volatile missing = nullptr; // the pointer volatile: the compiler can't know it's null
     return tilefall::drop(const_cast<const tilefall::Tile*>(missing));
 }
