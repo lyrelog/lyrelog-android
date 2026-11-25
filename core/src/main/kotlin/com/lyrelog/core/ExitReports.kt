@@ -48,7 +48,11 @@ object ExitReports {
 
     /** One frame of a native crash's backtrace. */
     data class NativeFrame(val relPc: Long, val function: String?, val functionOffset: Long, val file: String?, val buildId: String?) {
-        val binary: String get() = file?.substringAfterLast('/')?.ifEmpty { null } ?: "?"
+        /**
+         * The library's name: "libgame.so", also for one loaded straight from the APK
+         * (".../base.apk!libgame.so", as Android installs them uncompressed).
+         */
+        val binary: String get() = file?.substringAfterLast('/')?.substringAfterLast('!')?.ifEmpty { null } ?: "?"
 
         /** "libgame.so +0x1a2b (Game::step+24)": like the Swift SDK's frames, and the function when known. */
         val text: String
@@ -187,6 +191,10 @@ object ExitReports {
             builds.putIfAbsent(frame.binary, id)
         }
         if (builds.isNotEmpty()) payload["build_ids"] = builds
+        // The app's own libraries: the server reports only these as missing their symbols
+        // (`lyrelog symbols upload app/build`), never the system's.
+        val app = frames.filter { it.inApp && it.buildId != null && it.binary.endsWith(".so") }.map { it.binary }.distinct()
+        if (app.isNotEmpty()) payload["app_binaries"] = app
         tombstone?.faultAddress?.let { payload["fault_address"] = "0x" + java.lang.Long.toHexString(it) }
         return attrs to payload
     }

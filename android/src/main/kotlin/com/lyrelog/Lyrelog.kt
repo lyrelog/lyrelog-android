@@ -31,8 +31,8 @@ import java.io.File
  * [setConsent] before [start] are kept and applied when it runs.
  */
 object Lyrelog {
-    /** This SDK's version, sent as `resource.sdk` (`lyrelog-android/1.1.0`) and the User-Agent. */
-    const val VERSION = "1.1.0"
+    /** This SDK's version, sent as `resource.sdk` (`lyrelog-android/1.1.1`) and the User-Agent. */
+    const val VERSION = "1.1.1"
     private const val TAG = "Lyrelog"
 
     private val lock = Any()

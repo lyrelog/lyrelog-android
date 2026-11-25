@@ -8,7 +8,7 @@ class VersionTest {
     @Test
     fun theSdkVersionIsTheArtifactsVersion() {
         val built = System.getProperty("lyrelog.version")
-        assertEquals("1.1.0", Lyrelog.VERSION)
+        assertEquals("1.1.1", Lyrelog.VERSION)
         assertEquals(built, Lyrelog.VERSION)
         assertEquals("lyrelog-android/${Lyrelog.VERSION}", DeviceContext.SDK)
     }

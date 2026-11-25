@@ -12,7 +12,7 @@ class VersionTest {
     @Test
     fun oneVersionEverywhere() {
         val built = System.getProperty("lyrelog.version")
-        assertEquals("1.1.0", Lyrelog.VERSION)
+        assertEquals("1.1.1", Lyrelog.VERSION)
         assertEquals(built, Lyrelog.VERSION)
         assertEquals("lyrelog-jvm/$built", ServerDefaults.SDK)
         val android = File(root, "android/src/main/kotlin/com/lyrelog/Lyrelog.kt").readText()

@@ -49,7 +49,7 @@ class BoardActivity : Activity() {
             },
             button("Native crash") {
                 game.warning("native_crash_requested")
-                writeToAddressZero()
+                if (NativeBoard.loaded) NativeBoard.drop() else writeToAddressZero()
             },
             button("Settings") { startActivity(Intent(this, SettingsActivity::class.java)) },
         ))

@@ -26,7 +26,7 @@ Not published yet. Once it is, from Maven Central:
 
 ```kotlin
 dependencies {
-    implementation("com.lyrelog:lyrelog-android:1.1.0")
+    implementation("com.lyrelog:lyrelog-android:1.1.1")
 }
 ```
 
@@ -108,7 +108,13 @@ ended (`ApplicationExitInfo`, Android 11+), read on the next launch at the time 
 ANR the system ended is `app_hung` (level error, `mechanism: anr`) with the main thread's frames;
 a native (C/C++) crash is `app_crashed` (`mechanism: native`) with the signal, the abort message,
 and from Android 12 the crashed thread's frames, each library's build id and `native_function`,
-your app's frame nearest the top. JVM crashes aren't read again there. An ANR the app recovered
+your app's frame nearest the top. JVM crashes aren't read again there.
+
+**Readable crashes in release builds**: upload each release's symbols once with the
+[command-line tool](https://docs.lyrelog.com/cli), `lyrelog symbols upload app/build`. It finds
+the R8 mapping (renamed classes and methods back) and your native libraries' debug information
+(C and C++ frames as functions, files and lines; Gradle keeps the unstripped `.so` files under
+`build/intermediates`), and uploads only what the project doesn't have yet. An ANR the app recovered
 from (the person waited) isn't recorded by Android, so it isn't reported.
 
 **Screens**: say where the person is and every event that follows carries it as `screen`
@@ -213,8 +219,8 @@ the way the Go and Python SDKs are. Not published yet either.
 
 ```kotlin
 dependencies {
-    implementation("com.lyrelog:lyrelog-jvm:1.1.0")
-    implementation("com.lyrelog:lyrelog-jvm-logback:1.1.0")   // optional: SLF4J and Logback records
+    implementation("com.lyrelog:lyrelog-jvm:1.1.1")
+    implementation("com.lyrelog:lyrelog-jvm-logback:1.1.1")   // optional: SLF4J and Logback records
 }
 ```
 
@@ -296,7 +302,7 @@ android.permission.ACCESS_LOCAL_NETWORK`).
 ./gradlew :core:test :jvm:test :jvm-logback:test       # the JVM tests, no Android SDK needed
 LYRELOG_E2E_URL=http://127.0.0.1:8090 LYRELOG_E2E_KEY=lyr_ing_... ./gradlew :core:test --tests '*EndToEnd*'
 LYRELOG_E2E_URL=http://127.0.0.1:8090 LYRELOG_E2E_KEY=lyr_srv_... ./gradlew :jvm:test --tests '*EndToEnd*'
-./gradlew publishToMavenLocal                              # every artifact to ~/.m2, version 1.1.0
+./gradlew publishToMavenLocal                              # every artifact to ~/.m2, version 1.1.1
 ./gradlew :android:testDebugUnitTest :sample:assembleDebug   # with an Android SDK
 ```
 

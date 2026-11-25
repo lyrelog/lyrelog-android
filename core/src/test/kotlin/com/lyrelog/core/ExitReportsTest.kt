@@ -96,6 +96,14 @@ class ExitReportsTest {
         assertEquals("Game::step(int)", attrs["native_function"])
         assertEquals(mapOf("libgame.so" to "abc123", "libc.so" to "libc1", "libart.so" to "art1"), payload["build_ids"])
         assertEquals("0x10", payload["fault_address"])
+        assertEquals(listOf("libgame.so"), payload["app_binaries"])
+    }
+
+    @Test
+    fun aLibraryLoadedFromTheApkIsNamedByItself() {
+        val f = ExitReports.NativeFrame(0x10, null, 0, "/data/app/~~x==/com.example.tilefall-y==/base.apk!libgame.so", "abc")
+        assertEquals("libgame.so", f.binary)
+        assertEquals(true, f.inApp)
     }
 
     @Test

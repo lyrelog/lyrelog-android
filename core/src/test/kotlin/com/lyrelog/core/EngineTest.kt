@@ -44,7 +44,7 @@ class EngineTest {
         assertEquals("Bearer lyr_ing_test", request.headers["authorization"])
         assertEquals("application/x-ndjson", request.headers["content-type"])
         assertEquals("gzip", request.headers["content-encoding"])
-        assertEquals("lyrelog-android/1.1.0", request.headers["user-agent"])
+        assertEquals("lyrelog-android/1.1.1", request.headers["user-agent"])
         request.lines.forEach(ServerRules::check)
         assertEquals(listOf("checkout_done", "two"), request.messages())
         val first = request.events[0]

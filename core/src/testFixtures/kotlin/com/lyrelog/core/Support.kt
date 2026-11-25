@@ -85,7 +85,7 @@ fun options(
 
 val testResource = Resource(
     appId = "com.example.tilefall", appVersion = "1.2.0", appBuild = "120", osName = "android",
-    osVersion = "15", deviceModel = "Google Pixel 9", locale = "es_ES", sdk = "lyrelog-android/1.1.0",
+    osVersion = "15", deviceModel = "Google Pixel 9", locale = "es_ES", sdk = "lyrelog-android/1.1.1",
     environment = "development", platform = "android",
 )
 

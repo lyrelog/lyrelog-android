@@ -36,6 +36,27 @@ android {
         buildConfig = true
     }
 
+    // Native code (src/main/jni), with lyrelog.native=true in local.properties and the NDK
+    // installed: the "Native crash" button then crashes in C++ instead of writing to address 0.
+    if (local.getProperty("lyrelog.native") == "true") {
+        ndkVersion = local.getProperty("lyrelog.ndk", "28.2.13676358")
+        externalNativeBuild {
+            ndkBuild {
+                path = file("src/main/jni/Android.mk")
+            }
+        }
+    }
+
+    // Release is shrunk and obfuscated by R8, as a real app ships: its crashes need the mapping
+    // (build/outputs/mapping/release/mapping.txt) to be read. Signed with the debug key, to install.
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
